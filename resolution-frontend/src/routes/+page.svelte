@@ -8,7 +8,7 @@
 
 <div class="page-container">
 	<InitialPage
-		heroDescription="Choose your challenge. Ship every week. Pick workshops at your level, build real projects, earn prizes along the way."
+		heroDescription="Choose your challenge and ship every week. Earn prizes each week, and a giant prize if you stay til the end. When people drop out, steal their prizes."
 		ctaText="START BUILDING"
 		ctaHref="/api/auth/login"
 		showSteps={true}

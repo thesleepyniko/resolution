@@ -189,7 +189,7 @@
 
 	.hero-content {
 		position: absolute;
-		top: 63%;
+		top: 55%;
 		left: 50%;
 		transform: translateX(-50%);
 		display: flex;
@@ -210,7 +210,7 @@
 		font-family: var(--font-primary);
 		font-weight: 400;
 		color: var(--color-gold);
-		font-size: clamp(1rem, 0.9rem + 0.5vw, 1.5rem);
+		font-size: 1.2rem;
 		text-align: center;
 		text-shadow: var(--shadow-glow-gold);
 		line-height: 1.5;
