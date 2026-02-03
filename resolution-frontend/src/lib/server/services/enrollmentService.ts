@@ -1,5 +1,11 @@
-import { prisma } from '../prisma';
-import type { ProgramEnrollment, ProgramRole } from '@prisma/client';
+import { db } from '../db';
+import { programEnrollment, programSeason, user } from '../db/schema';
+import { eq, and } from 'drizzle-orm';
+
+export type ProgramRole = 'PARTICIPANT' | 'AMBASSADOR';
+export type EnrollmentStatus = 'ACTIVE' | 'DROPPED' | 'COMPLETED';
+
+export type ProgramEnrollment = typeof programEnrollment.$inferSelect;
 
 function computeStartingWeek(
 	startsAt: Date,
@@ -22,28 +28,41 @@ export const EnrollmentService = {
 	 * Computes startingWeek based on when they join.
 	 */
 	async enrollParticipant(userId: string, seasonSlug: string): Promise<ProgramEnrollment> {
-		const season = await prisma.programSeason.findUniqueOrThrow({
-			where: { slug: seasonSlug }
+		const season = await db.query.programSeason.findFirst({
+			where: eq(programSeason.slug, seasonSlug)
 		});
+
+		if (!season) {
+			throw new Error(`Season not found: ${seasonSlug}`);
+		}
 
 		const startingWeek = computeStartingWeek(season.startsAt, season.totalWeeks);
 
-		return prisma.programEnrollment.upsert({
-			where: {
-				userId_seasonId_role: {
-					userId,
-					seasonId: season.id,
-					role: 'PARTICIPANT'
-				}
-			},
-			update: { status: 'ACTIVE' },
-			create: {
+		const existing = await db.query.programEnrollment.findFirst({
+			where: and(
+				eq(programEnrollment.userId, userId),
+				eq(programEnrollment.seasonId, season.id),
+				eq(programEnrollment.role, 'PARTICIPANT')
+			)
+		});
+
+		if (existing) {
+			const [updated] = await db.update(programEnrollment)
+				.set({ status: 'ACTIVE' })
+				.where(eq(programEnrollment.id, existing.id))
+				.returning();
+			return updated;
+		}
+
+		const [created] = await db.insert(programEnrollment)
+			.values({
 				userId,
 				seasonId: season.id,
 				role: 'PARTICIPANT',
 				startingWeek
-			}
-		});
+			})
+			.returning();
+		return created;
 	},
 
 	/**
@@ -55,41 +74,58 @@ export const EnrollmentService = {
 		seasonSlug: string,
 		acceptedAt: Date = new Date()
 	): Promise<ProgramEnrollment> {
-		const [user, season] = await Promise.all([
-			prisma.user.findUniqueOrThrow({ where: { email } }),
-			prisma.programSeason.findUniqueOrThrow({ where: { slug: seasonSlug } })
+		const [foundUser, season] = await Promise.all([
+			db.query.user.findFirst({ where: eq(user.email, email) }),
+			db.query.programSeason.findFirst({ where: eq(programSeason.slug, seasonSlug) })
 		]);
+
+		if (!foundUser) throw new Error(`User not found: ${email}`);
+		if (!season) throw new Error(`Season not found: ${seasonSlug}`);
 
 		const startingWeek = computeStartingWeek(season.startsAt, season.totalWeeks, acceptedAt);
 
-		return prisma.programEnrollment.upsert({
-			where: {
-				userId_seasonId_role: {
-					userId: user.id,
-					seasonId: season.id,
-					role: 'AMBASSADOR'
-				}
-			},
-			update: { status: 'ACTIVE' },
-			create: {
-				userId: user.id,
+		const existing = await db.query.programEnrollment.findFirst({
+			where: and(
+				eq(programEnrollment.userId, foundUser.id),
+				eq(programEnrollment.seasonId, season.id),
+				eq(programEnrollment.role, 'AMBASSADOR')
+			)
+		});
+
+		if (existing) {
+			const [updated] = await db.update(programEnrollment)
+				.set({ status: 'ACTIVE' })
+				.where(eq(programEnrollment.id, existing.id))
+				.returning();
+			return updated;
+		}
+
+		const [created] = await db.insert(programEnrollment)
+			.values({
+				userId: foundUser.id,
 				seasonId: season.id,
 				role: 'AMBASSADOR',
 				startingWeek
-			}
-		});
+			})
+			.returning();
+		return created;
 	},
 
 	/**
 	 * Get all enrollments for a user in a specific season.
 	 */
 	async getUserSeasonEnrollments(userId: string, seasonSlug: string): Promise<ProgramEnrollment[]> {
-		const season = await prisma.programSeason.findUniqueOrThrow({
-			where: { slug: seasonSlug }
+		const season = await db.query.programSeason.findFirst({
+			where: eq(programSeason.slug, seasonSlug)
 		});
 
-		return prisma.programEnrollment.findMany({
-			where: { userId, seasonId: season.id }
+		if (!season) throw new Error(`Season not found: ${seasonSlug}`);
+
+		return db.query.programEnrollment.findMany({
+			where: and(
+				eq(programEnrollment.userId, userId),
+				eq(programEnrollment.seasonId, season.id)
+			)
 		});
 	},
 
@@ -98,11 +134,13 @@ export const EnrollmentService = {
 	 * Single indexed lookup - very fast.
 	 */
 	async hasRole(userId: string, seasonId: string, role: ProgramRole): Promise<boolean> {
-		const enrollment = await prisma.programEnrollment.findUnique({
-			where: {
-				userId_seasonId_role: { userId, seasonId, role }
-			},
-			select: { status: true }
+		const enrollment = await db.query.programEnrollment.findFirst({
+			where: and(
+				eq(programEnrollment.userId, userId),
+				eq(programEnrollment.seasonId, seasonId),
+				eq(programEnrollment.role, role)
+			),
+			columns: { status: true }
 		});
 
 		return !!enrollment && enrollment.status === 'ACTIVE';
@@ -126,9 +164,11 @@ export const EnrollmentService = {
 	 * Get current week number for a season.
 	 */
 	async getCurrentSeasonWeek(seasonSlug: string): Promise<number> {
-		const season = await prisma.programSeason.findUniqueOrThrow({
-			where: { slug: seasonSlug }
+		const season = await db.query.programSeason.findFirst({
+			where: eq(programSeason.slug, seasonSlug)
 		});
+
+		if (!season) throw new Error(`Season not found: ${seasonSlug}`);
 
 		return getCurrentWeek(season.startsAt, season.totalWeeks);
 	},
@@ -141,11 +181,20 @@ export const EnrollmentService = {
 		seasonId: string,
 		role: ProgramRole
 	): Promise<ProgramEnrollment | null> {
-		return prisma.programEnrollment.update({
-			where: {
-				userId_seasonId_role: { userId, seasonId, role }
-			},
-			data: { status: 'DROPPED' }
+		const existing = await db.query.programEnrollment.findFirst({
+			where: and(
+				eq(programEnrollment.userId, userId),
+				eq(programEnrollment.seasonId, seasonId),
+				eq(programEnrollment.role, role)
+			)
 		});
+
+		if (!existing) return null;
+
+		const [updated] = await db.update(programEnrollment)
+			.set({ status: 'DROPPED' })
+			.where(eq(programEnrollment.id, existing.id))
+			.returning();
+		return updated;
 	}
 };

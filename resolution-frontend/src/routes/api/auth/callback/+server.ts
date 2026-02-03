@@ -1,9 +1,11 @@
 import { redirect } from '@sveltejs/kit';
 import { hackClubAuth, lucia } from '$lib/server/auth';
-import { prisma } from '$lib/server/prisma';
+import { db } from '$lib/server/db';
+import { user, programSeason } from '$lib/server/db/schema';
 import { env } from '$env/dynamic/private';
 import { generateIdFromEntropySize } from 'lucia';
 import { EnrollmentService } from '$lib/server/services';
+import { eq } from 'drizzle-orm';
 
 export const GET = async ({ url, cookies, locals }) => {
   const code = url.searchParams.get('code');
@@ -36,21 +38,33 @@ export const GET = async ({ url, cookies, locals }) => {
       yswsEligible: hackClubUser.ysws_eligible || false
     };
 
-    const user = await prisma.user.upsert({
-      where: { hackClubId: hackClubUser.id },
-      update: userData,
-      create: {
-        id: generateIdFromEntropySize(10),
-        hackClubId: hackClubUser.id,
-        ...userData
-      }
+    const existing = await db.query.user.findFirst({
+      where: eq(user.hackClubId, hackClubUser.id)
     });
 
+    let dbUser;
+    if (existing) {
+      const [updated] = await db.update(user)
+        .set(userData)
+        .where(eq(user.hackClubId, hackClubUser.id))
+        .returning();
+      dbUser = updated;
+    } else {
+      const [created] = await db.insert(user)
+        .values({
+          id: generateIdFromEntropySize(10),
+          hackClubId: hackClubUser.id,
+          ...userData
+        })
+        .returning();
+      dbUser = created;
+    }
+
     let sessionCookie;
-    if (locals.session && locals.user?.id === user.id) {
+    if (locals.session && locals.user?.id === dbUser.id) {
       sessionCookie = lucia.createSessionCookie(locals.session.id);
     } else {
-      const session = await lucia.createSession(user.id, {});
+      const session = await lucia.createSession(dbUser.id, {});
       sessionCookie = lucia.createSessionCookie(session.id);
     }
 
@@ -59,13 +73,12 @@ export const GET = async ({ url, cookies, locals }) => {
       ...sessionCookie.attributes
     });
 
-    // Auto-enroll user in the active season as a participant
-    const activeSeason = await prisma.programSeason.findFirst({
-      where: { isActive: true }
+    const activeSeason = await db.query.programSeason.findFirst({
+      where: eq(programSeason.isActive, true)
     });
 
     if (activeSeason) {
-      await EnrollmentService.enrollParticipant(user.id, activeSeason.slug);
+      await EnrollmentService.enrollParticipant(dbUser.id, activeSeason.slug);
     }
 
     throw redirect(302, '/auth/complete');

@@ -1,0 +1,145 @@
+<script lang="ts">
+	import type { PageData } from './$types';
+	import PlatformBackground from '$lib/components/PlatformBackground.svelte';
+
+	let { data }: { data: PageData } = $props();
+
+	const pathwayInfo: Record<string, { label: string; icon: string; color: string }> = {
+		PYTHON: { label: 'Python', icon: 'terminal', color: 'ec3750' },
+		WEB_DEV: { label: 'Web Dev', icon: 'web', color: '338eda' },
+		GAME_DEV: { label: 'Game Dev', icon: 'controls', color: '33d6a6' },
+		HARDWARE: { label: 'Hardware', icon: 'settings', color: 'ff8c37' },
+		DESIGN: { label: 'Design', icon: 'idea', color: 'a633d6' },
+		GENERAL_CODING: { label: 'General Coding', icon: 'code', color: '5bc0de' }
+	};
+
+	let pathway = $derived(pathwayInfo[data.pathwayId]);
+	const weeks = Array.from({ length: 8 }, (_, i) => i + 1);
+</script>
+
+<svelte:head>
+	<title>{pathway.label} - Resolution</title>
+</svelte:head>
+
+<PlatformBackground>
+	<div class="pathway-container">
+		<a href="/app" class="back-link">
+			<img src="https://icons.hackclub.com/api/icons/8492a6/back" alt="Back" width="20" height="20" />
+			Back to Dashboard
+		</a>
+
+		<header>
+			<img
+				src="https://icons.hackclub.com/api/icons/{pathway.color}/{pathway.icon}"
+				alt={pathway.label}
+				class="pathway-icon"
+			/>
+			<h1>{pathway.label}</h1>
+			<p class="curator">brought to you by <span>{data.curator}</span></p>
+		</header>
+
+		<div class="weeks-grid">
+			{#each weeks as week}
+				<div class="week-card locked">
+					<img src="https://icons.hackclub.com/api/icons/8492a6/private" alt="Locked" class="lock-icon" />
+					<span class="week-number">Week {week}</span>
+				</div>
+			{/each}
+		</div>
+	</div>
+</PlatformBackground>
+
+<style>
+	.pathway-container {
+		min-height: 100vh;
+		padding: 2rem;
+		color: #1a1a2e;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.back-link {
+		align-self: flex-start;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		color: #8492a6;
+		text-decoration: none;
+		font-size: 0.9rem;
+		margin-bottom: 2rem;
+	}
+
+	.back-link:hover {
+		color: #1a1a2e;
+	}
+
+	header {
+		text-align: center;
+		margin-bottom: 3rem;
+	}
+
+	.pathway-icon {
+		width: 64px;
+		height: 64px;
+		margin-bottom: 1rem;
+	}
+
+	h1 {
+		font-size: 2rem;
+		margin: 0 0 0.5rem 0;
+	}
+
+	.curator {
+		font-size: 1rem;
+		color: #8492a6;
+		margin: 0;
+	}
+
+	.curator span {
+		color: #af98ff;
+		font-weight: 600;
+	}
+
+	.weeks-grid {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 1.5rem;
+		max-width: 800px;
+		width: 100%;
+	}
+
+	.week-card {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.75rem;
+		padding: 2rem 1.5rem;
+		background: rgba(255, 255, 255, 0.85);
+		border: 2px solid #8492a6;
+		border-radius: 16px;
+		font-family: 'Kodchasan', sans-serif;
+	}
+
+	.week-card.locked {
+		opacity: 0.6;
+	}
+
+	.lock-icon {
+		width: 32px;
+		height: 32px;
+	}
+
+	.week-number {
+		font-size: 1rem;
+		font-weight: 600;
+		color: #8492a6;
+	}
+
+	@media (max-width: 768px) {
+		.weeks-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+</style>

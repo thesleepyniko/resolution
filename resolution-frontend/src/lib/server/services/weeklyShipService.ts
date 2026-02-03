@@ -1,5 +1,10 @@
-import { prisma } from '../prisma';
-import type { WeeklyShip, WeeklyShipStatus } from '@prisma/client';
+import { db } from '../db';
+import { weeklyShip, workshop, user } from '../db/schema';
+import { eq, and, asc, desc, sql } from 'drizzle-orm';
+
+export type WeeklyShipStatus = 'PLANNED' | 'IN_PROGRESS' | 'SHIPPED' | 'MISSED';
+
+export type WeeklyShip = typeof weeklyShip.$inferSelect;
 
 export const WeeklyShipService = {
 	/**
@@ -13,16 +18,17 @@ export const WeeklyShipService = {
 		goalText: string;
 		workshopId?: string;
 	}): Promise<WeeklyShip> {
-		return prisma.weeklyShip.create({
-			data: {
+		const [created] = await db.insert(weeklyShip)
+			.values({
 				userId: data.userId,
 				seasonId: data.seasonId,
 				weekNumber: data.weekNumber,
 				goalText: data.goalText,
 				workshopId: data.workshopId,
 				status: 'PLANNED'
-			}
-		});
+			})
+			.returning();
+		return created;
 	},
 
 	/**
@@ -35,21 +41,25 @@ export const WeeklyShipService = {
 		proofUrl: string,
 		notes?: string
 	): Promise<WeeklyShip> {
-		const ship = await prisma.weeklyShip.findUnique({ where: { id: shipId } });
+		const ship = await db.query.weeklyShip.findFirst({
+			where: eq(weeklyShip.id, shipId)
+		});
 
 		if (!ship || ship.userId !== userId) {
 			throw new Error('Ship not found or access denied');
 		}
 
-		return prisma.weeklyShip.update({
-			where: { id: shipId },
-			data: {
+		const [updated] = await db.update(weeklyShip)
+			.set({
 				status: 'SHIPPED',
 				proofUrl,
 				notes,
-				shippedAt: new Date()
-			}
-		});
+				shippedAt: new Date(),
+				updatedAt: new Date()
+			})
+			.where(eq(weeklyShip.id, shipId))
+			.returning();
+		return updated;
 	},
 
 	/**
@@ -61,19 +71,23 @@ export const WeeklyShipService = {
 		userId: string,
 		status: WeeklyShipStatus
 	): Promise<WeeklyShip> {
-		const ship = await prisma.weeklyShip.findUnique({ where: { id: shipId } });
+		const ship = await db.query.weeklyShip.findFirst({
+			where: eq(weeklyShip.id, shipId)
+		});
 
 		if (!ship || ship.userId !== userId) {
 			throw new Error('Ship not found or access denied');
 		}
 
-		return prisma.weeklyShip.update({
-			where: { id: shipId },
-			data: {
+		const [updated] = await db.update(weeklyShip)
+			.set({
 				status,
-				shippedAt: status === 'SHIPPED' ? new Date() : undefined
-			}
-		});
+				shippedAt: status === 'SHIPPED' ? new Date() : undefined,
+				updatedAt: new Date()
+			})
+			.where(eq(weeklyShip.id, shipId))
+			.returning();
+		return updated;
 	},
 
 	/**
@@ -83,11 +97,15 @@ export const WeeklyShipService = {
 		userId: string,
 		seasonId: string,
 		weekNumber: number
-	): Promise<WeeklyShip[]> {
-		return prisma.weeklyShip.findMany({
-			where: { userId, seasonId, weekNumber },
-			include: { workshop: true },
-			orderBy: { createdAt: 'asc' }
+	): Promise<(WeeklyShip & { workshop: typeof workshop.$inferSelect | null })[]> {
+		return db.query.weeklyShip.findMany({
+			where: and(
+				eq(weeklyShip.userId, userId),
+				eq(weeklyShip.seasonId, seasonId),
+				eq(weeklyShip.weekNumber, weekNumber)
+			),
+			with: { workshop: true },
+			orderBy: [asc(weeklyShip.createdAt)]
 		});
 	},
 
@@ -99,19 +117,28 @@ export const WeeklyShipService = {
 		seasonId: string,
 		weekNumber: number
 	): Promise<number> {
-		return prisma.weeklyShip.count({
-			where: { userId, seasonId, weekNumber, status: 'SHIPPED' }
-		});
+		const result = await db.select({ count: sql<number>`count(*)::int` })
+			.from(weeklyShip)
+			.where(and(
+				eq(weeklyShip.userId, userId),
+				eq(weeklyShip.seasonId, seasonId),
+				eq(weeklyShip.weekNumber, weekNumber),
+				eq(weeklyShip.status, 'SHIPPED')
+			));
+		return result[0]?.count ?? 0;
 	},
 
 	/**
 	 * Get all ships for a user across the entire season.
 	 */
-	async getUserSeasonShips(userId: string, seasonId: string): Promise<WeeklyShip[]> {
-		return prisma.weeklyShip.findMany({
-			where: { userId, seasonId },
-			include: { workshop: true },
-			orderBy: [{ weekNumber: 'asc' }, { createdAt: 'asc' }]
+	async getUserSeasonShips(userId: string, seasonId: string): Promise<(WeeklyShip & { workshop: typeof workshop.$inferSelect | null })[]> {
+		return db.query.weeklyShip.findMany({
+			where: and(
+				eq(weeklyShip.userId, userId),
+				eq(weeklyShip.seasonId, seasonId)
+			),
+			with: { workshop: true },
+			orderBy: [asc(weeklyShip.weekNumber), asc(weeklyShip.createdAt)]
 		});
 	},
 
@@ -119,11 +146,16 @@ export const WeeklyShipService = {
 	 * Get ship stats for a user in a season.
 	 */
 	async getUserShipStats(userId: string, seasonId: string) {
-		const ships = await prisma.weeklyShip.groupBy({
-			by: ['status'],
-			where: { userId, seasonId },
-			_count: true
-		});
+		const ships = await db.select({
+			status: weeklyShip.status,
+			count: sql<number>`count(*)::int`
+		})
+			.from(weeklyShip)
+			.where(and(
+				eq(weeklyShip.userId, userId),
+				eq(weeklyShip.seasonId, seasonId)
+			))
+			.groupBy(weeklyShip.status);
 
 		const stats = {
 			planned: 0,
@@ -134,7 +166,7 @@ export const WeeklyShipService = {
 		};
 
 		for (const s of ships) {
-			const count = s._count;
+			const count = s.count;
 			stats.total += count;
 			switch (s.status) {
 				case 'PLANNED':
@@ -158,11 +190,11 @@ export const WeeklyShipService = {
 	/**
 	 * Get ships tied to a specific workshop.
 	 */
-	async getWorkshopShips(workshopId: string): Promise<WeeklyShip[]> {
-		return prisma.weeklyShip.findMany({
-			where: { workshopId },
-			include: { user: true },
-			orderBy: { createdAt: 'desc' }
+	async getWorkshopShips(workshopId: string): Promise<(WeeklyShip & { user: typeof user.$inferSelect })[]> {
+		return db.query.weeklyShip.findMany({
+			where: eq(weeklyShip.workshopId, workshopId),
+			with: { user: true },
+			orderBy: [desc(weeklyShip.createdAt)]
 		});
 	}
 };

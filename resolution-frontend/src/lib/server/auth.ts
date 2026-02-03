@@ -1,11 +1,12 @@
 import { Lucia } from 'lucia';
-import { PrismaAdapter } from '@lucia-auth/adapter-prisma';
-import { prisma } from './prisma';
+import { DrizzlePostgreSQLAdapter } from '@lucia-auth/adapter-drizzle';
+import { db } from './db';
+import { session, user } from './db/schema';
 import { dev } from '$app/environment';
 import { AuthorizationCode } from 'simple-oauth2';
 import { env } from '$env/dynamic/private';
 
-const adapter = new PrismaAdapter(prisma.session, prisma.user);
+const adapter = new DrizzlePostgreSQLAdapter(db, session, user);
 
 export const lucia = new Lucia(adapter, {
   sessionCookie: {
@@ -21,7 +22,8 @@ export const lucia = new Lucia(adapter, {
       lastName: attributes.lastName,
       slackId: attributes.slackId,
       verificationStatus: attributes.verificationStatus,
-      yswsEligible: attributes.yswsEligible
+      yswsEligible: attributes.yswsEligible,
+      isAdmin: attributes.isAdmin
     };
   }
 });
@@ -41,6 +43,7 @@ interface DatabaseUserAttributes {
   slackId: string | null;
   verificationStatus: string | null;
   yswsEligible: boolean;
+  isAdmin: boolean;
 }
 
 export const hackClubAuth = new AuthorizationCode({

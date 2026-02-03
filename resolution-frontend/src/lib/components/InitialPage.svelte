@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Step, Event, FAQ } from '$lib/types';
+	import type { Step, FAQ } from '$lib/types';
 	import heroBg from '$lib/assets/hero_bg.png';
 	import darkBg from '$lib/assets/dark_bg.png';
 	import swirlBg from '$lib/assets/swirl_overlay.png';
@@ -7,20 +7,16 @@
 	import fireworks from '$lib/assets/firework_burst.png';
 	import fireworksGif from '$lib/assets/fireworks_gif.png';
 	import sparklyBorder from '$lib/assets/gold_glitter_border.png';
-	import stair from '$lib/assets/stair.png';
-	import running from '$lib/assets/running_person.png';
 	import vectorLine from '$lib/assets/vector_divider.svg';
-	import EventCard from './EventCard.svelte';
+
 
 	interface Props {
 		heroDescription?: string;
 		ctaText?: string;
 		ctaHref?: string;
 		steps?: Step[];
-		events?: Event[];
 		faqs?: FAQ[];
 		showSteps?: boolean;
-		showEvents?: boolean;
 		showFaq?: boolean;
 	}
 
@@ -33,11 +29,6 @@
 			{ title: "Step 2", description: "asfdskfhsdsdfasdfsdafdsdsfasdfsdaf" },
 			{ title: "Step 3", description: "asfdskfhsdsdfasdfsdafdsdsfasdfsdaf" }
 		],
-		events = [
-			{ title: "Event 1", description: "Lorem ipsum dolor sit amet consectetur adipiscing elit" },
-			{ title: "Event 2", description: "Lorem ipsum dolor sit amet consectetur adipiscing elit", rotation: 12 },
-			{ title: "Event 3", description: "Lorem ipsum dolor sit amet consectetur adipiscing elit", rotation: -21 }
-		],
 		faqs = [
 			{ question: "Question 1" },
 			{ question: "Question 2" },
@@ -46,7 +37,6 @@
 			{ question: "Question 5" }
 		],
 		showSteps = false,
-		showEvents = false,
 		showFaq = false
 	}: Props = $props();
 
@@ -77,11 +67,8 @@
 			<p class="hero-description">{heroDescription}</p>
 
 			<div class="hero-buttons">
-				<a href={ctaHref} class="cta-button">
+				<a href={ctaHref} class="cta-button full-width">
 					<span>{ctaText}</span>
-				</a>
-				<a href="/api/auth/login" class="cta-button">
-					<span>Login</span>
 				</a>
 			</div>
 		</div>
@@ -125,63 +112,12 @@
 	{/if}
 
 	<!-- EVENTS & FAQ SECTION -->
-	{#if showEvents || showFaq}
+	{#if showFaq}
 		<section class="events-faq-section">
 			<img src={lightBlueBg} alt="" class="section-bg" />
 			
-			{#if showEvents}
-				<div class="events-content">
-					<h2 class="events-title">
-						<svg viewBox="-50 0 700 150" class="curved-text">
-							<path id="curve" d="M 0,100 Q 300,140 600,0" fill="transparent"/>
-							<text>
-								<textPath href="#curve" startOffset="50%" text-anchor="middle">Pick Your Path</textPath>
-							</text>
-						</svg>
-					</h2>
-
-					<div class="events-grid">
-						<div class="event-card-wrapper event-1">
-							<EventCard 
-								title={events[0]?.title ?? "Event 1"} 
-								description={events[0]?.description}
-								imageSrc={events[0]?.image}
-								variant="yellow"
-								rotation={0}
-								starCount={events[0]?.starCount}
-							/>
-						</div>
-
-						<div class="event-card-wrapper event-2">
-							<EventCard 
-								title={events[1]?.title ?? "Event 2"} 
-								description={events[1]?.description}
-								imageSrc={events[1]?.image}
-								variant="pink"
-								rotation={events[1]?.rotation ?? 12}
-								starCount={events[1]?.starCount}
-							/>
-						</div>
-
-						<div class="event-card-wrapper event-3">
-							<EventCard 
-								title={events[2]?.title ?? "Event 3"} 
-								description={events[2]?.description}
-								imageSrc={events[2]?.image}
-								variant="blue"
-								rotation={events[2]?.rotation ?? -21}
-								starCount={events[2]?.starCount}
-							/>
-						</div>
-					</div>
-				</div>
-			{/if}
-
-			{#if showFaq}
 				<div class="faq-section">
-					<div class="decoration running-decoration">
-						<img src={running} alt="" />
-					</div>
+
 
 					<h2 class="faq-title">FAQ</h2>
 
@@ -209,12 +145,8 @@
 							{/each}
 						</div>
 
-						<div class="decoration stair-decoration">
-							<img src={stair} alt="" />
-						</div>
 					</div>
 				</div>
-			{/if}
 		</section>
 	{/if}
 </div>
@@ -309,6 +241,10 @@
 		font-size: clamp(1rem, 0.9rem + 0.5vw, 1.5rem);
 		font-weight: 500;
 		white-space: nowrap;
+	}
+
+	.cta-button.full-width {
+		width: 100%;
 	}
 
 	/* ========== STEPS SECTION ========== */
@@ -422,82 +358,17 @@
 		overflow: hidden;
 	}
 
-	.events-content {
-		position: relative;
-		z-index: var(--z-raised);
-		padding-top: 10%;
-	}
-
-	.events-title {
-		width: 64%;
-		max-width: 960px;
-		margin: 0 auto;
-		transform: rotate(-12deg);
-	}
-
-	.curved-text {
-		width: 100%;
-		height: auto;
-		overflow: visible;
-	}
-
-	.curved-text text {
-		font-family: var(--font-primary);
-		font-weight: 400;
-		font-style: italic;
-		fill: var(--color-white);
-		font-size: clamp(18px, 2.2vw, 32px);
-	}
-
-	.events-grid {
-		position: relative;
-		width: 100%;
-		height: 40%;
-	}
-
-	.event-card-wrapper {
-		position: absolute;
-		margin-right: 10%;
-	}
-
-	.event-1 {
-		left: -14%;
-		top: 20%;
-		width: 64.5%;
-		z-index: 1;
-	}
-
-	.event-2 {
-		left: 21%;
-		top: 20%;
-		width: 64.5%;
-		z-index: 2;
-	}
-
-	.event-3 {
-		left: 56%;
-		top: 0%;
-		width: 60%;
-		z-index: 3;
-	}
-
 	/* ========== FAQ SECTION ========== */
 	.faq-section {
 		position: absolute;
-		bottom: 0;
+		top: 10%;
 		left: 0;
 		right: 0;
 		height: 55%;
 		z-index: var(--z-overlay);
 	}
 
-	.running-decoration {
-		left: 0;
-		top: 5%;
-		width: 28%;
-		z-index: var(--z-raised);
-		transform: rotate(162deg) scaleY(-1);
-	}
+	
 
 	.faq-title {
 		position: absolute;
@@ -616,32 +487,8 @@
 		word-break: break-word;
 	}
 
-	.stair-decoration {
-		right: 0;
-		left: auto;
-		top: 10%;
-		width: 45%;
-		z-index: var(--z-base);
-	}
-
+	
 	/* ========== RESPONSIVE ========== */
-	@media (max-width: 1024px) {
-		.event-1 {
-			left: 5%;
-			width: 35%;
-		}
-
-		.event-2 {
-			left: 35%;
-			width: 40%;
-		}
-
-		.event-3 {
-			left: 60%;
-			width: 40%;
-		}
-	}
-
 	@media (max-width: 480px) {
 		.hero-buttons {
 			flex-direction: column;
@@ -711,30 +558,5 @@
 			margin-left: 0;
 		}
 
-		.running-decoration,
-		.stair-decoration {
-			display: none;
-		}
-	}
-
-	@media (max-width: 900px) {
-		.event-1,
-		.event-2,
-		.event-3 {
-			position: relative;
-			left: auto;
-			top: auto;
-			width: 85%;
-			max-width: 400px;
-			margin: 1rem auto;
-		}
-
-		.events-grid {
-			height: auto;
-			display: flex;
-			flex-direction: column;
-			align-items: center;
-			padding: 2rem 0;
-		}
 	}
 </style>

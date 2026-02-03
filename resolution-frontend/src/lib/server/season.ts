@@ -1,5 +1,7 @@
 import { env } from '$env/dynamic/private';
-import { prisma } from './prisma';
+import { db } from './db';
+import { programSeason } from './db/schema';
+import { eq } from 'drizzle-orm';
 
 /**
  * Season configuration from environment variables.
@@ -92,28 +94,40 @@ export async function ensureSeasonFromEnv() {
 		return null;
 	}
 
-	const season = await prisma.programSeason.upsert({
-		where: { slug: config.slug },
-		update: {
-			name: config.name,
-			signupOpensAt: config.signupOpensAt,
-			signupClosesAt: config.signupClosesAt,
-			startsAt: config.startsAt,
-			endsAt: config.endsAt,
-			totalWeeks: config.totalWeeks,
-			isActive: true
-		},
-		create: {
-			name: config.name,
-			slug: config.slug,
-			signupOpensAt: config.signupOpensAt,
-			signupClosesAt: config.signupClosesAt,
-			startsAt: config.startsAt,
-			endsAt: config.endsAt,
-			totalWeeks: config.totalWeeks,
-			isActive: true
-		}
+	const existing = await db.query.programSeason.findFirst({
+		where: eq(programSeason.slug, config.slug)
 	});
+
+	let season;
+	if (existing) {
+		const [updated] = await db.update(programSeason)
+			.set({
+				name: config.name,
+				signupOpensAt: config.signupOpensAt,
+				signupClosesAt: config.signupClosesAt,
+				startsAt: config.startsAt,
+				endsAt: config.endsAt,
+				totalWeeks: config.totalWeeks,
+				isActive: true
+			})
+			.where(eq(programSeason.slug, config.slug))
+			.returning();
+		season = updated;
+	} else {
+		const [created] = await db.insert(programSeason)
+			.values({
+				name: config.name,
+				slug: config.slug,
+				signupOpensAt: config.signupOpensAt,
+				signupClosesAt: config.signupClosesAt,
+				startsAt: config.startsAt,
+				endsAt: config.endsAt,
+				totalWeeks: config.totalWeeks,
+				isActive: true
+			})
+			.returning();
+		season = created;
+	}
 
 	console.log(`Season "${season.name}" synced (starts: ${config.startsAt.toDateString()}, ends: ${config.endsAt.toDateString()})`);
 	return season;
@@ -123,7 +137,7 @@ export async function ensureSeasonFromEnv() {
  * Get the active season (from DB, synced from env).
  */
 export async function getActiveSeason() {
-	return prisma.programSeason.findFirst({
-		where: { isActive: true }
+	return db.query.programSeason.findFirst({
+		where: eq(programSeason.isActive, true)
 	});
 }
